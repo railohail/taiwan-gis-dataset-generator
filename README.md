@@ -571,4 +571,6 @@ processing:
 
 ## License
 
-See LICENSE file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+You are free to use, modify, and distribute this software for any purpose, including commercial applications.
