@@ -23,7 +23,13 @@ python main.py --verbose
 ### Interactive Mask Tool
 ```bash
 # Define exclusion regions (zoom-ins, legends) interactively
-python clean_mask.py
+python -m tools.clean_mask
+```
+
+### YOLO to COCO Converter
+```bash
+# Convert YOLO dataset to COCO format
+python -m tools.convert_yolo_to_coco --input yolo_seg_base --output coco_seg_base
 ```
 
 ## Architecture
@@ -55,6 +61,11 @@ python clean_mask.py
 
 **Visualization:**
 - [utils/visualization.py](utils/visualization.py) - Debug overlays and verification utilities
+
+### Tools (`tools/`)
+Standalone utility scripts:
+- [tools/clean_mask.py](tools/clean_mask.py) - Interactive mask region selector for excluding zoom-ins, legends
+- [tools/convert_yolo_to_coco.py](tools/convert_yolo_to_coco.py) - Convert YOLO segmentation datasets to COCO format
 
 ### Processing Modes
 - **Separate Districts**: Each image contains ONE county, cropped from full map

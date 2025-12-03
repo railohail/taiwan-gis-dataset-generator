@@ -5,7 +5,7 @@ Interactive tool to define mask regions (zoom-ins, legends, decorative elements)
 that should be excluded from map annotations.
 
 Usage:
-    python clean_mask.py
+    python -m tools.clean_mask
 
 Features:
     - Draw rectangles on map images to define exclusion zones
@@ -30,6 +30,7 @@ import cv2
 import numpy as np
 import yaml
 import os
+import sys
 import glob
 from pathlib import Path
 import rasterio
@@ -38,6 +39,9 @@ from shapely.geometry import box
 from shapely.ops import unary_union
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
+
+# Add parent directory to path for utils imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 
 class MaskRegionSelector:
@@ -585,8 +589,6 @@ class MaskRegionSelector:
         )
 
         # Save to mask database
-        import sys
-        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
         from utils.masks import get_mask_database
 
         mask_db = get_mask_database()
@@ -740,7 +742,8 @@ def select_file_interactive(tif_files):
                 print("Invalid input. Please enter a number, 'a', 'b', or 'q'")
 
 
-if __name__ == "__main__":
+def main():
+    """Main entry point for the clean mask tool."""
     # Find all TIF files
     all_tif_files = glob.glob('datasets/MAPDATA/**/*.tif', recursive=True)
     all_tif_files = [f for f in all_tif_files if not f.endswith('.aux.xml')]
@@ -748,72 +751,80 @@ if __name__ == "__main__":
     if not all_tif_files:
         print("No TIF files found in datasets/MAPDATA/")
         print("Please place TIF files there first.")
-    else:
-        print(f"\nFound {len(all_tif_files)} TIF file(s)")
+        return 1
 
-        # Step 1: Select folders
-        filtered_files = select_folder_filter(all_tif_files)
+    print(f"\nFound {len(all_tif_files)} TIF file(s)")
 
-        if filtered_files is None:
+    # Step 1: Select folders
+    filtered_files = select_folder_filter(all_tif_files)
+
+    if filtered_files is None:
+        print("Exiting...")
+        return 0
+
+    # Step 2: Select specific file(s) from filtered list
+    while True:
+        selection = select_file_interactive(filtered_files)
+
+        if selection is None:
             print("Exiting...")
-        else:
-            # Step 2: Select specific file(s) from filtered list
-            while True:
-                selection = select_file_interactive(filtered_files)
+            break
+        elif selection == 'BACK':
+            # Go back to folder selection
+            filtered_files = select_folder_filter(all_tif_files)
+            if filtered_files is None:
+                print("Exiting...")
+                break
+            continue
+        elif selection == 'ALL':
+            # Process all filtered files
+            print("\n" + "=" * 70)
+            print(f"Processing ALL {len(filtered_files)} files")
+            print("=" * 70)
 
-                if selection is None:
-                    print("Exiting...")
-                    break
-                elif selection == 'BACK':
-                    # Go back to folder selection
-                    filtered_files = select_folder_filter(all_tif_files)
-                    if filtered_files is None:
-                        print("Exiting...")
+            selector = MaskRegionSelector(shapefile_path='datasets/shapefile/COUNTY_MOI_1130718.shp')
+
+            for idx, tif_file in enumerate(filtered_files, 1):
+                print(f"\n\n[File {idx}/{len(filtered_files)}]")
+                print("=" * 70)
+
+                # Check if already has masks
+                from utils.masks import get_mask_database
+                mask_db = get_mask_database()
+                tif_basename = os.path.basename(tif_file)
+
+                if mask_db.has_masks(tif_basename):
+                    print(f"⚠  Masks already exist for: {tif_basename}")
+                    print("   Options: [s]kip | [o]verwrite | [q]uit")
+                    action = input("   Your choice: ").strip().lower()
+
+                    if action == 's':
+                        print("   Skipped.")
+                        continue
+                    elif action == 'q':
+                        print("\nStopping batch processing.")
                         break
-                    continue
-                elif selection == 'ALL':
-                    # Process all filtered files
-                    print("\n" + "=" * 70)
-                    print(f"Processing ALL {len(filtered_files)} files")
-                    print("=" * 70)
+                    elif action == 'o':
+                        print("   Overwriting...")
+                    else:
+                        print("   Skipped (invalid input).")
+                        continue
 
-                    selector = MaskRegionSelector(shapefile_path='datasets/shapefile/COUNTY_MOI_1130718.shp')
+                selector.run(tif_file, crop_factor=0.05)
 
-                    for idx, tif_file in enumerate(filtered_files, 1):
-                        print(f"\n\n[File {idx}/{len(filtered_files)}]")
-                        print("=" * 70)
+            print("\n" + "=" * 70)
+            print("Batch processing complete!")
+            print("=" * 70)
+            break
+        else:
+            # Single file processing
+            print(f"\nProcessing: {selection}\n")
+            selector = MaskRegionSelector(shapefile_path='datasets/shapefile/COUNTY_MOI_1130718.shp')
+            selector.run(selection, crop_factor=0.05)
+            break
 
-                        # Check if already has masks
-                        from utils.masks import get_mask_database
-                        mask_db = get_mask_database()
-                        tif_basename = os.path.basename(tif_file)
+    return 0
 
-                        if mask_db.has_masks(tif_basename):
-                            print(f"⚠  Masks already exist for: {tif_basename}")
-                            print("   Options: [s]kip | [o]verwrite | [q]uit")
-                            action = input("   Your choice: ").strip().lower()
 
-                            if action == 's':
-                                print("   Skipped.")
-                                continue
-                            elif action == 'q':
-                                print("\nStopping batch processing.")
-                                break
-                            elif action == 'o':
-                                print("   Overwriting...")
-                            else:
-                                print("   Skipped (invalid input).")
-                                continue
-
-                        selector.run(tif_file, crop_factor=0.05)
-
-                    print("\n" + "=" * 70)
-                    print("Batch processing complete!")
-                    print("=" * 70)
-                    break
-                else:
-                    # Single file processing
-                    print(f"\nProcessing: {selection}\n")
-                    selector = MaskRegionSelector(shapefile_path='datasets/shapefile/COUNTY_MOI_1130718.shp')
-                    selector.run(selection, crop_factor=0.05)
-                    break
+if __name__ == "__main__":
+    sys.exit(main())
