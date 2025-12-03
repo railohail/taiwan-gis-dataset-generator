@@ -27,27 +27,80 @@ A production-ready tool for converting Taiwan county GIS map data (TIF raster fi
 
 ## Requirements
 
-- Python 3.8+
-- Dependencies:
-  - rasterio
-  - geopandas
-  - shapely
-  - opencv-python
-  - numpy
-  - PyYAML
-  - Pillow
-  - tqdm
-  - matplotlib
+- Python 3.8 or higher (tested with 3.10, 3.11)
+- GDAL library (required by rasterio)
+
+### Core Dependencies
+
+| Package | Version | Purpose |
+|---------|---------|---------|
+| rasterio | >=1.3.0 | GeoTIFF reading and coordinate transforms |
+| geopandas | >=0.14.0 | Shapefile handling |
+| shapely | >=2.0.0 | Polygon operations and clipping |
+| opencv-python | >=4.8.0 | Image processing and augmentation |
+| numpy | >=1.24.0 | Array operations |
+| scipy | >=1.11.0 | Distance transforms for noise |
+| scikit-image | >=0.21.0 | Color space conversions |
+| Pillow | >=10.0.0 | Image I/O |
+| PyYAML | >=6.0 | Configuration files |
+| matplotlib | >=3.7.0 | Visualization and debug output |
+| tqdm | >=4.65.0 | Progress bars |
 
 ## Installation
+
+### Option 1: Using venv (Recommended)
 
 ```bash
 # Clone the repository
 git clone https://github.com/YOUR_USERNAME/taiwan-gis-dataset-generator.git
 cd taiwan-gis-dataset-generator
 
+# Create virtual environment
+python -m venv venv
+
+# Activate virtual environment
+# On Windows:
+venv\Scripts\activate
+# On Linux/macOS:
+source venv/bin/activate
+
 # Install dependencies
 pip install -r requirements.txt
+```
+
+### Option 2: Using conda
+
+```bash
+# Clone the repository
+git clone https://github.com/YOUR_USERNAME/taiwan-gis-dataset-generator.git
+cd taiwan-gis-dataset-generator
+
+# Create conda environment
+conda create -n gis-gen python=3.10
+
+# Activate environment
+conda activate gis-gen
+
+# Install GDAL first (easier with conda)
+conda install -c conda-forge gdal
+
+# Install remaining dependencies
+pip install -r requirements.txt
+```
+
+### Troubleshooting Installation
+
+**rasterio installation fails:**
+- On Windows, install GDAL binaries first from https://www.lfd.uci.edu/~gohlke/pythonlibs/
+- Or use conda: `conda install -c conda-forge rasterio`
+
+**geopandas installation fails:**
+- Install with conda: `conda install -c conda-forge geopandas`
+
+### Verify Installation
+
+```bash
+python -c "import rasterio; import geopandas; import cv2; print('All dependencies OK')"
 ```
 
 ## Quick Start
