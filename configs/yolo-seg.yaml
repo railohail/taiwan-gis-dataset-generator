@@ -1,0 +1,118 @@
+crop_factor: 0.05
+districts:
+- miaoli
+# - taipei
+# - new_taipei
+# - keelung
+# - taoyuan
+# - hsinchu
+# - yilan
+
+# Output format - NEW FEATURE
+output:
+  format: yolo           # Options: 'coco' or 'yolo'
+  annotation_type: segmentation  # Options: 'segmentation' or 'bbox'
+  grayscale: false        # Convert images to grayscale if true
+
+  # Dataset split configuration (works for both YOLO and COCO)
+  use_split: true           # If true, create train/val/test splits
+  train_ratio: 0.8         # 70% for training
+  val_ratio: 0.2            # 20% for validation
+  test_ratio: 0.0         # 10% for testing
+  split_seed: 42            # Random seed for reproducible splits
+
+# Processing modes for v2 - NEW FEATURE
+processing_modes:
+  separate_districts: true  # Each district gets its own image
+  combined_maps: true        # All districts combined in one image (FOR TESTING MASKS)
+
+# Hue augmentation configuration - NEW FEATURE for v2
+hue_augmentation:
+  enabled: false  # Disable for quick test
+  count: 1                # Number of hue-shifted versions per image
+  hue_shift_range: [-0.3, 0.3]      # Range of hue shifts (-1 to 1)
+  saturation_range: [0.8, 1.2]      # Range of saturation multipliers
+  value_range: [0.9, 1.1]           # Range of value/brightness multipliers
+
+noise_configs:
+- acceleration: 0
+  border_buffer_pixels: 0
+  enabled: true
+  intensity: 0.0
+  name: clean
+  type: gaussian
+- acceleration: 1.0
+  border_buffer_pixels: 10
+  enabled: true
+  intensity: 0.4
+  name: light
+  type: gaussian
+# - acceleration: 0.8
+#   border_buffer_pixels: 8
+#   enabled: true
+#   intensity: 0.6
+#   name: medium
+#   type: gaussian
+# - acceleration: 0.6
+#   border_buffer_pixels: 8
+#   enabled: true
+#   intensity: 0.9
+#   name: hard
+#   type: gaussian
+
+output_base_dir: yolo_seg_miaoli_test
+processing:
+  max_files_per_district: 10    # Process just 1 file for testing
+  min_polygon_area: 100
+  skip_existing: false
+
+  # Mask skip threshold for separate districts mode (NEW)
+  # If a separate district image has >X% of its area masked, skip it entirely
+  # This prevents generating mostly-empty images where zoom-ins cover the district
+  # Example: 50.0 means skip if >50% is masked (default: 50.0)
+  # Set to 100.0 to disable (never skip), or lower (e.g., 30.0) to be more aggressive
+  mask_skip_threshold_separate: 50.0
+
+performance:
+  batch_size: 10  # Flush to disk every 10 images (lower = more frequent saves, safer but slower)
+                   # NOTE: When using splits (use_split: true), set this to 1 to ensure all labels go to correct split directories
+
+rotation:
+  angle_range:
+  - -30
+  - 30
+  count: 1  # Reduce for quick test
+  enabled: true  # Disable for quick test
+  fill_value: 0
+  interpolation: bilinear
+
+shapefile_path: datasets/shapefile/COUNTY_MOI_1130718.shp
+mapdata_base_dir: datasets/MAPDATA
+
+visualization:
+  create_masks: true
+  dpi: 300
+  save_noise_debug: true
+
+window_configs:
+- name: xy_100
+  x_percent: 100
+  y_percent: 100
+# - name: xy_95
+#   x_percent: 95
+#   y_percent: 95
+# - name: xy_90
+#   x_percent: 90
+#   y_percent: 90
+# - name: xy_80
+#   x_percent: 80
+#   y_percent: 80
+# - name: xy_70
+#   x_percent: 70
+#   y_percent: 70
+# - name: x_80_y_50
+#   x_percent: 80
+#   y_percent: 50
+# - name: y_80_x_50
+#   x_percent: 50
+#   y_percent: 80

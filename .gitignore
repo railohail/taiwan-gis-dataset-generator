@@ -1,0 +1,112 @@
+# ===========================================
+# Taiwan GIS Dataset Generator - .gitignore
+# ===========================================
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# ===========================================
+# Project-specific ignores
+# ===========================================
+
+# Output directories (generated datasets)
+coco_*/
+yolo_*/
+output_*/
+runs/
+
+# Debug/test output
+debug_output/
+debug_masks/
+interact/
+test_mask_output/
+*_test/
+
+# Log files
+*.log
+
+# Temp files
+nul
+*.tmp
+
+# Model weights (large files)
+*.pt
+*.pth
+*.onnx
+*.weights
+
+# Large data files (user must provide their own)
+datasets/MAPDATA/**/*.tif
+datasets/MAPDATA/**/*.TIF
+datasets/shapefile/*.shp
+datasets/shapefile/*.shx
+datasets/shapefile/*.dbf
+datasets/shapefile/*.prj
+datasets/shapefile/*.cpg
+
+# But keep the directory structure
+!datasets/MAPDATA/.gitkeep
+!datasets/shapefile/.gitkeep
+
+# Mask database (user-specific)
+mask_database/masks.yaml
+
+# Generated visualizations and images
+visualizations/
+*.png
+!README_images/*.png
+
+# Utility/debug scripts (optional - uncomment if you want to exclude)
+# debug_*.py
+# test_*.py
+# check_*.py
+# filter_clean_dataset.py
+# convert_yolo_to_coco.py
+# validate_conversion.py
+# compare_datasets.py
+# clean_mask.py
+
+# Old/backup files
+old_data/
+*.bak
+*.backup
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Jupyter notebooks (if any)
+.ipynb_checkpoints/
