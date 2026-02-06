@@ -124,7 +124,7 @@ def create_default_config():
     """Create a default config file if it doesn't exist."""
     default_config = {
         'districts': ['kaoshung'],  # List of district folders to process
-        'shapefile_path': 'datasets/shapefile/COUNTY_MOI_1130718.shp',
+        'shapefile_path': 'datasets/shapefile/county/COUNTY_MOI_1130718.shp',
         'mapdata_base_dir': 'datasets/MAPDATA',
         'output_base_dir': 'full_coco_output_v2',
         'crop_factor': 0.05,

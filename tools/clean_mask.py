@@ -47,7 +47,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 class MaskRegionSelector:
     """Interactive tool for selecting mask regions on map images."""
 
-    def __init__(self, shapefile_path='datasets/shapefile/COUNTY_MOI_1130718.shp'):
+    def __init__(self, shapefile_path='datasets/shapefile/county/COUNTY_MOI_1130718.shp'):
         """
         Initialize the mask selector.
 
@@ -782,7 +782,7 @@ def main():
             print(f"Processing ALL {len(filtered_files)} files")
             print("=" * 70)
 
-            selector = MaskRegionSelector(shapefile_path='datasets/shapefile/COUNTY_MOI_1130718.shp')
+            selector = MaskRegionSelector(shapefile_path='datasets/shapefile/county/COUNTY_MOI_1130718.shp')
 
             for idx, tif_file in enumerate(filtered_files, 1):
                 print(f"\n\n[File {idx}/{len(filtered_files)}]")
@@ -819,7 +819,7 @@ def main():
         else:
             # Single file processing
             print(f"\nProcessing: {selection}\n")
-            selector = MaskRegionSelector(shapefile_path='datasets/shapefile/COUNTY_MOI_1130718.shp')
+            selector = MaskRegionSelector(shapefile_path='datasets/shapefile/county/COUNTY_MOI_1130718.shp')
             selector.run(selection, crop_factor=0.05)
             break
 

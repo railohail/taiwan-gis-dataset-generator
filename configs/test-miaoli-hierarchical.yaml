@@ -1,0 +1,91 @@
+# Test config: Miaoli only, both separate and combined modes
+# For testing the hierarchical pipeline bug fixes
+
+crop_factor: 0.05
+
+districts:
+- miaoli
+
+output:
+  format: yolo
+  annotation_type: segmentation
+  grayscale: false
+  hierarchical: true
+
+  # Split config - small test
+  use_split: true
+  train_ratio: 0.5
+  val_ratio: 0.5
+  test_ratio: 0.0
+  split_seed: 42
+
+hierarchy:
+  enabled: true
+  noise_target: disabled  # No noise for cleaner test
+
+  level_0:
+    name: county
+    shapefile: datasets/shapefile/county/COUNTY_MOI_1130718.shp
+    num_classes: 22
+    id_column: COUNTYID
+    name_column: COUNTYNAME
+
+  level_1:
+    name: township
+    shapefile: datasets/shapefile/township/TOWN_MOI_1140318.shp
+    num_classes: 368
+    id_column: TOWNID
+    name_column: TOWNNAME
+    parent_id_column: COUNTYID
+
+  hierarchy_file: datasets/taiwan_admin_hierarchy.json
+
+# Test BOTH modes
+processing_modes:
+  separate_districts: true
+  combined_maps: true
+
+# Disable dropout for simple test
+township_dropout:
+  enabled: false
+
+# Disable augmentations for simple test
+hue_augmentation:
+  enabled: false
+
+noise_configs:
+- name: clean
+  enabled: true
+  intensity: 0.0
+  type: gaussian
+  acceleration: 0
+  border_buffer_pixels: 0
+
+rotation:
+  enabled: false
+
+# Single window for combined mode
+window_configs:
+- name: full
+  x_percent: 100
+  y_percent: 100
+
+output_base_dir: test_miaoli_hierarchical
+
+processing:
+  max_files_per_district: 2  # Just 2 TIF files for quick test
+  min_polygon_area: 100
+  skip_existing: false
+  mask_skip_threshold_separate: 50.0
+
+performance:
+  batch_size: 10
+
+shapefile_path: datasets/shapefile/county/COUNTY_MOI_1130718.shp
+mapdata_base_dir: datasets/MAPDATA
+
+visualization:
+  create_masks: true
+  create_hierarchical_overlay: true
+  dpi: 150
+  save_noise_debug: false

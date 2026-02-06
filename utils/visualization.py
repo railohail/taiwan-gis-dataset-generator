@@ -260,28 +260,53 @@ def create_transparent_mask_visualization(image, annotations, categories, output
 
     for ann in annotations:
         category_id = ann['category_id']
-        segmentation = ann['segmentation'][0]
+        segmentation_list = ann['segmentation']
 
-        if len(segmentation) < 6:
+        if not segmentation_list:
             continue
 
-        points = [(segmentation[i], segmentation[i+1]) for i in range(0, len(segmentation), 2)]
         category_name = next((cat['name'] for cat in categories if cat['id'] == category_id), f"Category_{category_id}")
-
-        # Check if all points are within image bounds
         image_height, image_width = image.shape[:2]
-        points_valid = all(0 <= x < image_width and 0 <= y < image_height for x, y in points)
 
-        polygon_patch = Polygon(points,
-                               facecolor=colors[category_id % len(colors)],
-                               edgecolor='red' if not points_valid else 'black',
-                               alpha=0.6,
-                               linewidth=2 if not points_valid else 1)
-        ax.add_patch(polygon_patch)
+        # Process all polygons in the segmentation (handles multi-part annotations)
+        all_points = []
+        points_valid = True
 
-        if points:
-            cx = sum(p[0] for p in points) / len(points)
-            cy = sum(p[1] for p in points) / len(points)
+        for seg_idx, segmentation in enumerate(segmentation_list):
+            if len(segmentation) < 6:
+                continue
+
+            points = [(segmentation[i], segmentation[i+1]) for i in range(0, len(segmentation), 2)]
+            if not points:
+                continue
+
+            # Check if all points are within image bounds
+            if not all(0 <= x < image_width and 0 <= y < image_height for x, y in points):
+                points_valid = False
+
+            # First polygon is exterior, subsequent polygons are holes or additional parts
+            if seg_idx == 0:
+                all_points = points
+                polygon_patch = Polygon(points,
+                                       facecolor=colors[category_id % len(colors)],
+                                       edgecolor='red' if not points_valid else 'black',
+                                       alpha=0.6,
+                                       linewidth=2 if not points_valid else 1)
+                ax.add_patch(polygon_patch)
+            else:
+                # Additional polygons (could be holes or disconnected parts)
+                # Draw as white (hole) or same color (part) depending on winding
+                # For simplicity, draw with reduced alpha to indicate additional parts
+                polygon_patch = Polygon(points,
+                                       facecolor='white',  # Holes shown as white
+                                       edgecolor='gray',
+                                       alpha=0.8,
+                                       linewidth=1)
+                ax.add_patch(polygon_patch)
+
+        if all_points:
+            cx = sum(p[0] for p in all_points) / len(all_points)
+            cy = sum(p[1] for p in all_points) / len(all_points)
             # Use English name only to avoid font issues
             english_name = category_name.replace('County', 'Co').replace('City', 'Ci')
 
@@ -293,9 +318,9 @@ def create_transparent_mask_visualization(image, annotations, categories, output
                    color=text_color,
                    bbox=dict(boxstyle="round,pad=0.2", facecolor='white', alpha=0.8))
 
-        annotation_count += 1
-        if points_valid:
-            valid_annotations += 1
+            annotation_count += 1
+            if points_valid:
+                valid_annotations += 1
 
     ax.set_xlim(0, image.shape[1])
     ax.set_ylim(image.shape[0], 0)
@@ -694,3 +719,360 @@ def create_shapefile_visualization(image, shapefile, transform, output_path, tit
     plt.close(fig)
 
     print(f"    Shapefile visualization saved: {os.path.basename(output_path)}")
+
+
+def create_hierarchical_visualization(
+    image,
+    annotations_l0,
+    annotations_l1,
+    categories_l0,
+    categories_l1,
+    output_path,
+    title="Hierarchical Segmentation"
+):
+    """
+    Create visualization showing both county (L0) and township (L1) annotations.
+
+    This creates a 2-panel figure:
+    - Left: County level with colored fills and thick boundaries
+    - Right: Township level with distinct colors and clear boundaries
+
+    Args:
+        image: RGB image array
+        annotations_l0: List of COCO annotations for county level
+        annotations_l1: List of COCO annotations for township level
+        categories_l0: List of county categories (with 'english' field)
+        categories_l1: List of township categories (with 'english' field)
+        output_path: Path to save the visualization
+        title: Title for the figure
+    """
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(28, 14))
+
+    # Setup colormaps - use tab20 for counties
+    colors_l0 = cm.get_cmap('tab20')(np.linspace(0, 1, 20))
+
+    # Panel 1: County level (L0)
+    ax1.imshow(image)
+    ax1.set_title(f"L0: County Level ({len(annotations_l0)} regions)", fontsize=16, fontweight='bold', color='#2E86AB')
+
+    for ann in annotations_l0:
+        category_id = ann['category_id']
+        segmentation = ann['segmentation'][0] if ann['segmentation'] else []
+
+        if len(segmentation) < 6:
+            continue
+
+        points = [(segmentation[i], segmentation[i+1]) for i in range(0, len(segmentation), 2)]
+        color = colors_l0[category_id % len(colors_l0)]
+
+        # Filled polygon with thick white-outlined boundary
+        polygon_patch = Polygon(
+            points,
+            facecolor=color,
+            edgecolor='white',
+            alpha=0.6,
+            linewidth=3
+        )
+        ax1.add_patch(polygon_patch)
+
+        # Add darker boundary on top for definition
+        xs = [p[0] for p in points] + [points[0][0]]
+        ys = [p[1] for p in points] + [points[0][1]]
+        ax1.plot(xs, ys, color=tuple(c * 0.7 for c in color[:3]), linewidth=2, zorder=5)
+
+        # Add label at centroid - USE ENGLISH NAME
+        if points:
+            cx = sum(p[0] for p in points) / len(points)
+            cy = sum(p[1] for p in points) / len(points)
+
+            # Get English name, fallback to ID
+            cat_info = next((c for c in categories_l0 if c['id'] == category_id), None)
+            if cat_info:
+                label = cat_info.get('english', cat_info.get('name', f"C{category_id}"))
+            else:
+                label = f"C{category_id}"
+            short_name = label[:12] if len(label) > 12 else label
+
+            ax1.text(cx, cy, short_name, ha='center', va='center',
+                    fontsize=10, fontweight='bold', color='white',
+                    bbox=dict(boxstyle="round,pad=0.3", facecolor=tuple(c * 0.8 for c in color[:3]),
+                             edgecolor='white', linewidth=2, alpha=0.95),
+                    zorder=10)
+
+    ax1.set_xlim(0, image.shape[1])
+    ax1.set_ylim(image.shape[0], 0)
+    ax1.set_aspect('equal')
+    ax1.axis('off')
+
+    # Panel 2: Township level (L1) - USE DISTINCT COLORS PER TOWNSHIP
+    ax2.imshow(image)
+    ax2.set_title(f"L1: Township Level ({len(annotations_l1)} regions)", fontsize=16, fontweight='bold', color='#A23B72')
+
+    # Use a larger colormap for townships - each gets distinct color
+    n_townships = len(annotations_l1)
+    if n_townships <= 20:
+        colors_l1 = cm.get_cmap('tab20')(np.linspace(0, 1, 20))
+    else:
+        # Use rainbow/spectral for more distinction
+        colors_l1 = cm.get_cmap('nipy_spectral')(np.linspace(0.1, 0.9, n_townships))
+
+    for idx, ann in enumerate(annotations_l1):
+        category_id = ann['category_id']
+        segmentation = ann['segmentation'][0] if ann['segmentation'] else []
+
+        if len(segmentation) < 6:
+            continue
+
+        points = [(segmentation[i], segmentation[i+1]) for i in range(0, len(segmentation), 2)]
+
+        # Each township gets its own distinct color
+        color = colors_l1[idx % len(colors_l1)]
+
+        # Filled polygon with BLACK boundary for clear separation
+        polygon_patch = Polygon(
+            points,
+            facecolor=color,
+            edgecolor='black',
+            alpha=0.7,
+            linewidth=2
+        )
+        ax2.add_patch(polygon_patch)
+
+        # Add labels - USE ENGLISH NAME
+        if points:
+            cx = sum(p[0] for p in points) / len(points)
+            cy = sum(p[1] for p in points) / len(points)
+
+            # Get English name
+            cat_info = next((c for c in categories_l1 if c['id'] == category_id), None)
+            if cat_info:
+                label = cat_info.get('english', f"T{category_id}")
+            else:
+                label = f"T{category_id}"
+            short_name = label[:8] if len(label) > 8 else label
+
+            # Show labels for all townships (they're important)
+            ax2.text(cx, cy, short_name, ha='center', va='center',
+                    fontsize=7, fontweight='bold', color='black',
+                    bbox=dict(boxstyle="round,pad=0.2", facecolor='white',
+                             edgecolor='black', linewidth=1, alpha=0.85))
+
+    ax2.set_xlim(0, image.shape[1])
+    ax2.set_ylim(image.shape[0], 0)
+    ax2.set_aspect('equal')
+    ax2.axis('off')
+
+    # Add overall title
+    fig.suptitle(title, fontsize=18, fontweight='bold', y=0.98)
+
+    plt.tight_layout()
+
+    try:
+        plt.savefig(output_path, dpi=220, bbox_inches='tight', facecolor='white')
+        print(f"    Hierarchical visualization saved: {os.path.basename(output_path)}")
+    except Exception as e:
+        print(f"    Error saving hierarchical visualization: {e}")
+
+    plt.close(fig)
+
+
+def _create_polygon_with_holes(segmentation_list, facecolor, edgecolor, alpha, linewidth):
+    """
+    Create a matplotlib patch that properly handles polygons with holes.
+
+    Args:
+        segmentation_list: List of coordinate lists. First is exterior, rest are holes.
+        facecolor: Fill color
+        edgecolor: Edge color
+        alpha: Transparency
+        linewidth: Edge width
+
+    Returns:
+        PathPatch object or None if invalid
+    """
+    from matplotlib.path import Path
+    from matplotlib.patches import PathPatch
+
+    if not segmentation_list or len(segmentation_list[0]) < 6:
+        return None
+
+    # Build path vertices and codes
+    all_vertices = []
+    all_codes = []
+
+    for ring_idx, ring in enumerate(segmentation_list):
+        if len(ring) < 6:
+            continue
+
+        # Convert flat coords to points
+        points = [(ring[i], ring[i+1]) for i in range(0, len(ring), 2)]
+
+        # Add to path
+        for i, pt in enumerate(points):
+            all_vertices.append(pt)
+            if i == 0:
+                all_codes.append(Path.MOVETO)
+            else:
+                all_codes.append(Path.LINETO)
+
+        # Close the ring
+        all_vertices.append(points[0])
+        all_codes.append(Path.CLOSEPOLY)
+
+    if not all_vertices:
+        return None
+
+    path = Path(all_vertices, all_codes)
+    return PathPatch(path, facecolor=facecolor, edgecolor=edgecolor,
+                     alpha=alpha, linewidth=linewidth)
+
+
+def create_hierarchical_overlay_visualization(
+    image,
+    annotations_l0,
+    annotations_l1,
+    categories_l0,
+    categories_l1,
+    output_path,
+    title="Hierarchical Overlay"
+):
+    """
+    Create single-panel visualization with both levels overlaid.
+
+    County (L0): thick colored boundaries with white outline for contrast
+    Township (L1): distinct colored fills with black boundaries
+
+    Uses ENGLISH labels only to avoid font issues.
+    Properly handles polygons with holes (from mask subtraction).
+
+    Args:
+        image: RGB image array
+        annotations_l0: County level annotations
+        annotations_l1: Township level annotations
+        categories_l0: County categories (with 'english' field)
+        categories_l1: Township categories (with 'english' field)
+        output_path: Path to save
+        title: Figure title
+    """
+    fig, ax = plt.subplots(figsize=(20, 20))
+    ax.imshow(image)
+
+    n_l1 = len(annotations_l1) if annotations_l1 else 0
+
+    # Use tab20 for counties
+    colors_l0 = cm.get_cmap('tab20')(np.linspace(0, 1, 20))
+
+    # Use spectral colormap for townships - each gets distinct color
+    if n_l1 <= 20:
+        colors_l1 = cm.get_cmap('tab20')(np.linspace(0, 1, 20))
+    else:
+        colors_l1 = cm.get_cmap('nipy_spectral')(np.linspace(0.1, 0.9, n_l1))
+
+    # Draw L1 (townships) first - underneath with distinct fills
+    for idx, ann in enumerate(annotations_l1):
+        category_id = ann['category_id']
+        segmentation = ann.get('segmentation', [])
+
+        if not segmentation or len(segmentation[0]) < 6:
+            continue
+
+        # Each township gets distinct color
+        fill_color = colors_l1[idx % len(colors_l1)]
+
+        # Use PathPatch for polygons with holes
+        patch = _create_polygon_with_holes(
+            segmentation,
+            facecolor=fill_color[:3],
+            edgecolor='black',
+            alpha=0.5,
+            linewidth=1.5
+        )
+        if patch:
+            ax.add_patch(patch)
+
+        # Add township label - USE ENGLISH (use exterior centroid)
+        ext_coords = segmentation[0]
+        points = [(ext_coords[i], ext_coords[i+1]) for i in range(0, len(ext_coords), 2)]
+        if points:
+            cx = sum(p[0] for p in points) / len(points)
+            cy = sum(p[1] for p in points) / len(points)
+
+            cat_info = next((c for c in categories_l1 if c['id'] == category_id), None)
+            if cat_info:
+                label = cat_info.get('english', f"T{category_id}")
+            else:
+                label = f"T{category_id}"
+            short_name = label[:6] if len(label) > 6 else label
+
+            ax.text(cx, cy, short_name, ha='center', va='center',
+                    fontsize=6, fontweight='bold', color='black',
+                    bbox=dict(boxstyle="round,pad=0.15", facecolor='white', alpha=0.7),
+                    zorder=5)
+
+    # Draw L0 (counties) on top - thick boundaries with white outline for contrast
+    for ann in annotations_l0:
+        category_id = ann['category_id']
+        segmentation = ann.get('segmentation', [])
+
+        if not segmentation or len(segmentation[0]) < 6:
+            continue
+
+        # Draw exterior boundary
+        ext_coords = segmentation[0]
+        points = [(ext_coords[i], ext_coords[i+1]) for i in range(0, len(ext_coords), 2)]
+        color = colors_l0[category_id % len(colors_l0)]
+
+        xs = [p[0] for p in points] + [points[0][0]]
+        ys = [p[1] for p in points] + [points[0][1]]
+
+        # Draw white outline first (for contrast)
+        ax.plot(xs, ys, color='white', linewidth=7, solid_capstyle='round', zorder=10)
+        # Draw colored boundary on top
+        ax.plot(xs, ys, color=color, linewidth=4, solid_capstyle='round', zorder=11)
+
+        # Also draw hole boundaries if any
+        for hole_coords in segmentation[1:]:
+            if len(hole_coords) >= 6:
+                hole_points = [(hole_coords[i], hole_coords[i+1]) for i in range(0, len(hole_coords), 2)]
+                hxs = [p[0] for p in hole_points] + [hole_points[0][0]]
+                hys = [p[1] for p in hole_points] + [hole_points[0][1]]
+                # Draw hole boundary with same style but dashed
+                ax.plot(hxs, hys, color='white', linewidth=5, solid_capstyle='round', zorder=10)
+                ax.plot(hxs, hys, color=color, linewidth=3, linestyle='--', solid_capstyle='round', zorder=11)
+
+        # Add county label - USE ENGLISH
+        if points:
+            cx = sum(p[0] for p in points) / len(points)
+            cy = sum(p[1] for p in points) / len(points)
+
+            cat_info = next((c for c in categories_l0 if c['id'] == category_id), None)
+            if cat_info:
+                label = cat_info.get('english', f"C{category_id}")
+            else:
+                label = f"C{category_id}"
+            short_name = label[:12] if len(label) > 12 else label
+
+            ax.text(cx, cy, short_name, ha='center', va='center',
+                    fontsize=12, fontweight='bold', color='white',
+                    bbox=dict(boxstyle="round,pad=0.4", facecolor=color,
+                             edgecolor='white', linewidth=2, alpha=0.95),
+                    zorder=12)
+
+    ax.set_xlim(0, image.shape[1])
+    ax.set_ylim(image.shape[0], 0)
+    ax.set_aspect('equal')
+    ax.axis('off')
+
+    # Title with counts
+    ax.set_title(f"{title}\nCounty (L0): {len(annotations_l0)} | Township (L1): {len(annotations_l1)}",
+                fontsize=16, fontweight='bold', pad=20)
+
+    plt.tight_layout()
+
+    try:
+        plt.savefig(output_path, dpi=250, bbox_inches='tight', facecolor='white')
+        print(f"    Hierarchical overlay saved: {os.path.basename(output_path)}")
+    except Exception as e:
+        print(f"    Error saving hierarchical overlay: {e}")
+
+    plt.close(fig)

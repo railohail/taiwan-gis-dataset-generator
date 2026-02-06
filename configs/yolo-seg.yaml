@@ -86,7 +86,7 @@ rotation:
   fill_value: 0
   interpolation: bilinear
 
-shapefile_path: datasets/shapefile/COUNTY_MOI_1130718.shp
+shapefile_path: datasets/shapefile/county/COUNTY_MOI_1130718.shp
 mapdata_base_dir: datasets/MAPDATA
 
 visualization:

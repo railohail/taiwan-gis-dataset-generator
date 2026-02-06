@@ -1,0 +1,178 @@
+# Hierarchical YOLO Segmentation Dataset Configuration
+# For H-DETR: Generates both county (L0) and township (L1) annotations
+
+crop_factor: 0.05
+
+districts:
+- miaoli
+- taipei
+- new_taipei
+- keelung
+- taoyuan
+- hsinchu
+- taichung
+- yilan
+
+# Output format
+output:
+  format: yolo
+  annotation_type: segmentation
+  grayscale: false
+
+  # Hierarchical mode - NEW for H-DETR
+  hierarchical: true
+
+  # Dataset split configuration
+  use_split: true
+  train_ratio: 0.8
+  val_ratio: 0.2
+  test_ratio: 0.0
+  split_seed: 42
+
+# Hierarchical annotation settings
+hierarchy:
+  enabled: true
+
+  # Noise target for hierarchical mode
+  # Options: 'county' (noise fades from county borders),
+  #          'township' (noise fades from township borders),
+  #          'disabled' (no noise, only clean images - safest for township annotations)
+  noise_target: township
+
+  # Level 0: County (縣市)
+  level_0:
+    name: county
+    shapefile: datasets/shapefile/county/COUNTY_MOI_1130718.shp
+    num_classes: 22
+    id_column: COUNTYID
+    name_column: COUNTYNAME
+
+  # Level 1: Township (鄉鎮區)
+  level_1:
+    name: township
+    shapefile: datasets/shapefile/township/TOWN_MOI_1140318.shp
+    num_classes: 368
+    id_column: TOWNID
+    name_column: TOWNNAME
+    parent_id_column: COUNTYID  # Links to level_0
+
+  # Hierarchy mapping file (auto-generated)
+  hierarchy_file: datasets/taiwan_admin_hierarchy.json
+
+# Processing modes
+processing_modes:
+  separate_districts: true
+  combined_maps: true  # Enable for window-based crops of full maps
+
+# Township dropout - simulate incomplete maps
+# Randomly drops outer townships to teach model that missing towns still make a county
+township_dropout:
+  enabled: true
+  mode: random  # 'random' or 'config'
+  create_county_holes: true  # If true, subtract dropped townships from county geometry
+
+  # Variant generation settings
+  include_uncut: true       # Always generate an uncut (complete) version first
+  dropout_variants: 3       # Number of different dropout patterns per image (0 = only uncut)
+
+  # Random mode settings
+  random:
+    min_drop: 1        # Minimum townships to drop per county
+    max_drop: 6        # Maximum townships to drop per county
+    edge_only: true    # Only drop townshidps on county edge (most realistic)
+    cluster_drop: true # Dropped townships must be adjacent (contiguous group)
+    seed: null         # null = different dropout per image, set number for reproducible
+
+  # Config mode settings (explicit dropout specification)
+  config:
+    dropouts: []
+    # Example:
+    # - county_id: 'A'
+    #   township_ids: ['A01', 'A02']
+
+# Augmentations
+hue_augmentation:
+  enabled: true  # Enable for training data variety
+  count: 2
+  hue_shift_range: [-0.3, 0.3]
+  saturation_range: [0.8, 1.2]
+  value_range: [0.9, 1.1]
+
+noise_configs:
+- name: clean
+  enabled: true
+  intensity: 0.0
+  type: gaussian
+  acceleration: 0
+  border_buffer_pixels: 0
+- name: light
+  enabled: true  # Township-based noise - intensity fades from borders
+  intensity: 0.3
+  type: gaussian
+  acceleration: 1.0
+  border_buffer_pixels: 12
+- name: medium
+  enabled: true
+  intensity: 0.5
+  type: gaussian
+  acceleration: 1.5
+  border_buffer_pixels: 8
+- name: heavy
+  enabled: true
+  intensity: 0.7
+  type: perlin
+  acceleration: 2.0
+  border_buffer_pixels: 5
+
+rotation:
+  enabled: true
+  count: 2
+  angle_range: [-30, 30]
+  interpolation: bilinear
+  fill_value: 0
+
+# Window configurations (used in combined_maps mode)
+window_configs:
+- name: xy_100
+  x_percent: 100
+  y_percent: 100
+- name: xy_95
+  x_percent: 95
+  y_percent: 95
+- name: xy_90
+  x_percent: 90
+  y_percent: 90
+- name: xy_80
+  x_percent: 80
+  y_percent: 80
+- name: xy_70
+  x_percent: 70
+  y_percent: 70
+- name: x_80_y_50
+  x_percent: 80
+  y_percent: 50
+- name: y_80_x_50
+  x_percent: 50
+  y_percent: 80
+
+output_base_dir: yolo_hierarchy_four
+
+processing:
+  max_files_per_district: 10  # Small number for testing
+  min_polygon_area: 100
+  skip_existing: false
+  mask_skip_threshold_separate: 50.0
+
+performance:
+  batch_size: 10
+
+# Shapefile paths (legacy - kept for backward compatibility)
+# For hierarchical mode, use hierarchy.level_0.shapefile and hierarchy.level_1.shapefile
+shapefile_path: datasets/shapefile/county/COUNTY_MOI_1130718.shp
+mapdata_base_dir: datasets/MAPDATA
+
+visualization:
+  create_masks: true
+  create_hierarchical_overlay: true  # Overlay both L0 and L1 annotations
+  dpi: 300
+  save_noise_debug: false

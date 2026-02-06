@@ -309,29 +309,64 @@ def filter_annotations_with_masks(
                     # Update annotation with clipped polygon
                     new_ann = ann.copy()
 
-                    # Handle MultiPolygon result - take largest
+                    # Collect all polygon parts (handles MultiPolygon and polygons with holes)
+                    all_polygons = []
                     if clipped_poly.geom_type == 'MultiPolygon':
-                        clipped_poly = max(clipped_poly.geoms, key=lambda g: g.area)
+                        all_polygons = list(clipped_poly.geoms)
+                    elif clipped_poly.geom_type == 'Polygon':
+                        all_polygons = [clipped_poly]
+                    elif clipped_poly.geom_type == 'GeometryCollection':
+                        all_polygons = [g for g in clipped_poly.geoms if g.geom_type == 'Polygon']
 
-                    if clipped_poly.geom_type == 'Polygon' and not clipped_poly.is_empty:
-                        # Convert back to COCO format
-                        coords = list(clipped_poly.exterior.coords)
+                    # Convert each polygon part to COCO format
+                    # IMPORTANT: Include both exteriors AND interiors (holes)
+                    # COCO format supports multiple polygons in segmentation array
+                    segmentation_parts = []
+                    total_area = 0
+                    all_xs = []
+                    all_ys = []
+
+                    for poly_part in all_polygons:
+                        if poly_part.is_empty or poly_part.area < 10:
+                            continue
+
+                        # Add exterior ring
+                        coords = list(poly_part.exterior.coords)
                         flat_coords = []
                         for x, y in coords[:-1]:  # Exclude closing point
                             flat_coords.extend([float(x), float(y)])
 
-                        new_ann['segmentation'] = [flat_coords]
+                        if len(flat_coords) >= 6:  # At least 3 points
+                            segmentation_parts.append(flat_coords)
+                            all_xs.extend(flat_coords[0::2])
+                            all_ys.extend(flat_coords[1::2])
 
-                        # Recalculate bbox and area
-                        xs = flat_coords[0::2]
-                        ys = flat_coords[1::2]
+                        # Add interior rings (holes) as separate polygons
+                        # Note: In COCO, holes are often represented as separate polygons
+                        # that will be subtracted when rendering the mask
+                        for interior in poly_part.interiors:
+                            hole_coords = list(interior.coords)
+                            hole_flat = []
+                            for x, y in hole_coords[:-1]:
+                                hole_flat.extend([float(x), float(y)])
+
+                            if len(hole_flat) >= 6:
+                                segmentation_parts.append(hole_flat)
+                                all_xs.extend(hole_flat[0::2])
+                                all_ys.extend(hole_flat[1::2])
+
+                        # Area is already correct (exterior minus holes)
+                        total_area += poly_part.area
+
+                    if segmentation_parts:
+                        new_ann['segmentation'] = segmentation_parts
                         new_ann['bbox'] = [
-                            min(xs),
-                            min(ys),
-                            max(xs) - min(xs),
-                            max(ys) - min(ys)
+                            min(all_xs),
+                            min(all_ys),
+                            max(all_xs) - min(all_xs),
+                            max(all_ys) - min(all_ys)
                         ]
-                        new_ann['area'] = clipped_poly.area
+                        new_ann['area'] = total_area
 
                         filtered_annotations.append(new_ann)
                         stats['clipped'] += 1

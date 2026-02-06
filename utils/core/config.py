@@ -221,6 +221,92 @@ class VisualizationConfig(DictAccessMixin):
 
 
 @dataclass
+class HierarchyLevelConfig(DictAccessMixin):
+    """Configuration for a hierarchy level (county or township)."""
+    name: str = ""
+    shapefile: str = ""
+    num_classes: int = 0
+    id_column: str = ""
+    name_column: str = ""
+    parent_id_column: Optional[str] = None
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> 'HierarchyLevelConfig':
+        """Create from dictionary."""
+        return cls(
+            name=data.get('name', ''),
+            shapefile=data.get('shapefile', ''),
+            num_classes=data.get('num_classes', 0),
+            id_column=data.get('id_column', ''),
+            name_column=data.get('name_column', ''),
+            parent_id_column=data.get('parent_id_column')
+        )
+
+
+@dataclass
+class HierarchyConfig(DictAccessMixin):
+    """Hierarchical annotation configuration for H-DETR."""
+    enabled: bool = False
+    noise_target: str = "county"  # 'county', 'township', or 'disabled'
+    level_0: HierarchyLevelConfig = field(default_factory=HierarchyLevelConfig)
+    level_1: HierarchyLevelConfig = field(default_factory=HierarchyLevelConfig)
+    hierarchy_file: str = ""
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> 'HierarchyConfig':
+        """Create from dictionary."""
+        return cls(
+            enabled=data.get('enabled', False),
+            noise_target=data.get('noise_target', 'county'),
+            level_0=HierarchyLevelConfig.from_dict(data.get('level_0', {})),
+            level_1=HierarchyLevelConfig.from_dict(data.get('level_1', {})),
+            hierarchy_file=data.get('hierarchy_file', '')
+        )
+
+
+@dataclass
+class TownshipDropoutRandomConfig(DictAccessMixin):
+    """Random mode configuration for township dropout."""
+    min_drop: int = 1
+    max_drop: int = 3
+    edge_only: bool = True
+    cluster_drop: bool = True
+    seed: Optional[int] = None
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> 'TownshipDropoutRandomConfig':
+        """Create from dictionary."""
+        return cls(
+            min_drop=data.get('min_drop', 1),
+            max_drop=data.get('max_drop', 3),
+            edge_only=data.get('edge_only', True),
+            cluster_drop=data.get('cluster_drop', True),
+            seed=data.get('seed')
+        )
+
+
+@dataclass
+class TownshipDropoutConfig(DictAccessMixin):
+    """Township dropout configuration for simulating incomplete maps."""
+    enabled: bool = False
+    mode: str = "random"  # 'random' or 'config'
+    create_county_holes: bool = False
+    random: TownshipDropoutRandomConfig = field(default_factory=TownshipDropoutRandomConfig)
+    config: dict = field(default_factory=lambda: {"dropouts": []})
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> 'TownshipDropoutConfig':
+        """Create from dictionary."""
+        return cls(
+            enabled=data.get('enabled', False),
+            mode=data.get('mode', 'random'),
+            create_county_holes=data.get('create_county_holes', False),
+            random=TownshipDropoutRandomConfig.from_dict(data.get('random', {})),
+            config=data.get('config', {"dropouts": []})
+        )
+
+
+@dataclass
 class Config:
     """Main configuration class."""
     # Required fields
@@ -240,6 +326,12 @@ class Config:
     hue_augmentation: HueAugmentationConfig = field(default_factory=HueAugmentationConfig)
     rotation: RotationConfig = field(default_factory=RotationConfig)
     window_configs: list[WindowConfig] = field(default_factory=list)
+
+    # Hierarchical annotation support (H-DETR)
+    hierarchy: HierarchyConfig = field(default_factory=HierarchyConfig)
+
+    # Township dropout for simulating incomplete maps
+    township_dropout: TownshipDropoutConfig = field(default_factory=TownshipDropoutConfig)
 
     def validate(self) -> None:
         """Validate configuration."""
@@ -277,7 +369,7 @@ class Config:
             # Wrap nested dataclass configs to support dict-style access
             if isinstance(value, (OutputConfig, ProcessingModesConfig, ProcessingConfig,
                                 PerformanceConfig, VisualizationConfig, HueAugmentationConfig,
-                                RotationConfig)):
+                                RotationConfig, HierarchyConfig, TownshipDropoutConfig)):
                 return DataclassDict(value)
             return value
         raise KeyError(f"Configuration has no key: {key}")
@@ -313,6 +405,12 @@ class Config:
             WindowConfig.from_dict(wc) for wc in data.get('window_configs', [])
         ]
 
+        # Process hierarchy config (H-DETR support)
+        hierarchy = HierarchyConfig.from_dict(data.get('hierarchy', {}))
+
+        # Process township dropout config
+        township_dropout = TownshipDropoutConfig.from_dict(data.get('township_dropout', {}))
+
         config = cls(
             output_base_dir=data['output_base_dir'],
             districts=data['districts'],
@@ -327,7 +425,9 @@ class Config:
             noise_configs=noise_configs,
             hue_augmentation=hue_augmentation,
             rotation=rotation,
-            window_configs=window_configs
+            window_configs=window_configs,
+            hierarchy=hierarchy,
+            township_dropout=township_dropout
         )
 
         config.validate()

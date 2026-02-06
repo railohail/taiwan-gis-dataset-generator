@@ -110,3 +110,5 @@ desktop.ini
 
 # Jupyter notebooks (if any)
 .ipynb_checkpoints/
+datasets
+.claude

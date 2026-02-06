@@ -259,33 +259,6 @@ def _load_mask_regions(
     return mask_db.get_masks(tif_basename)
 
 
-def _adjust_mask_regions_for_crop(
-    mask_regions: List[Dict[str, Any]],
-    crop_x: int,
-    crop_y: int
-) -> List[Dict[str, Any]]:
-    """
-    Adjust mask regions for crop offset.
-
-    Args:
-        mask_regions: Original mask regions
-        crop_x: X crop offset in pixels
-        crop_y: Y crop offset in pixels
-
-    Returns:
-        Adjusted mask regions
-    """
-    adjusted = []
-    for region in mask_regions:
-        adjusted.append({
-            'x': region['x'] - crop_x,
-            'y': region['y'] - crop_y,
-            'width': region['width'],
-            'height': region['height']
-        })
-    return adjusted
-
-
 # =============================================================================
 # Main Processing Functions
 # =============================================================================
@@ -606,17 +579,13 @@ def process_combined_maps(
                 tif_basename = os.path.basename(tif_file)
                 tqdm.write(f"    Found {len(mask_regions)} mask region(s) for {tif_basename}")
 
-                # Adjust mask regions for crop offset using helper function
-                crop_factor = config.get('crop_factor', 0.05)
-                crop_x = int(raster.width * crop_factor)
-                crop_y = int(raster.height * crop_factor)
-                adjusted_mask_regions = _adjust_mask_regions_for_crop(mask_regions, crop_x, crop_y)
-
                 # Apply masks to shapefile (subtracts mask regions from polygons)
+                # IMPORTANT: Use original raster transform since mask_regions are in
+                # original image pixel coordinates (not adjusted for crop)
                 clipped_shapefile = apply_mask_regions_to_shapefile(
                     clipped_shapefile,
-                    adjusted_mask_regions,
-                    cropped_transform
+                    mask_regions,
+                    original_raster_transform  # Use original transform, not cropped
                 )
 
                 if clipped_shapefile is None or clipped_shapefile.empty:
@@ -624,7 +593,7 @@ def process_combined_maps(
                     raster.close()
                     continue
 
-                mask_regions = None  # Clear mask_regions so they're not applied again to annotations
+                # Don't clear mask_regions - windows still need them for annotation filtering
 
             file_base_name = f"combined_{Path(tif_file).stem}"
 
