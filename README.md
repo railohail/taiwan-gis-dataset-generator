@@ -113,6 +113,16 @@ python -c "import rasterio; import geopandas; import cv2; print('All dependencie
 python main.py --config configs/yolo-seg.yaml
 ```
 
+## Dataset Generation Workflow
+
+```bash
+# 1. Generate YOLO dataset
+python main.py --config configs/yolo-seg.yaml
+
+# 2. Convert YOLO to COCO format
+python -m tools.convert_yolo_to_coco --input yolo_seg_output --output coco_output
+```
+
 ## Usage
 
 ### Main Generator
